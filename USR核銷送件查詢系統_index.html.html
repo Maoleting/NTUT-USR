@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>資料進度查詢｜USR校務端</title>
+    <title>USR計畫核銷送件進度查詢｜USR校務端</title>
     <meta name="description" content="教師送件資料單號查詢，顯示目前處理狀態：未收到／已收件／二層核章／已完成核章送出。" />
     <!-- Tailwind via CDN for quick styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,8 +19,8 @@
   <body class="min-h-screen bg-slate-50">
     <header class="bg-white border-b border-slate-200">
       <div class="max-w-3xl mx-auto px-4 py-6">
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900">資料進度查詢</h1>
-        <p class="text-slate-600 mt-1">輸入送件資料單號，查詢目前處理狀態（未收到／已收件／二層核章／已完成核章送出）。</p>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900">USR計畫核銷送件進度查詢｜USR校務端</h1>
+        <p class="text-slate-600 mt-1">請輸入送件核銷單號，查詢目前處理狀態（尚未收到／已收件／待二層核章／已完成核章送出）。</p>
       </div>
     </header>
 
@@ -68,7 +68,7 @@
       <!-- Empty State -->
       <section id="emptyState" class="mt-6 text-center text-slate-500 hidden">
         <p class="mb-2">查無此單號或尚未建立。</p>
-        <p class="text-sm">若剛送件，請稍後再試；或聯絡承辦確認。狀態預設視為「未收到」。</p>
+        <p class="text-sm">若剛送件，請稍後再試；或聯絡中心承辦確認(分機1031丁小姐)。狀態預設視為「未收到」。</p>
       </section>
 
       <footer class="mt-10 text-center text-xs text-slate-400">
@@ -78,11 +78,11 @@
 
     <script>
       // ====== Config ======
-      const STATUS_ORDER = ["未收到", "已收件", "二層核章", "已完成核章送出"];
+      const STATUS_ORDER = ["尚未收到", "已收件", "待二層核章", "已完成核章送出"];
       const STATUS_STYLE = {
-        "未收到":  { bg: "bg-slate-200", text: "text-slate-700", dot: "bg-slate-400" },
+        "尚未收到":  { bg: "bg-slate-200", text: "text-slate-700", dot: "bg-slate-400" },
         "已收件":  { bg: "bg-amber-100", text: "text-amber-800", dot: "bg-amber-400" },
-        "二層核章": { bg: "bg-indigo-100", text: "text-indigo-800", dot: "bg-indigo-500" },
+        "待二層核章": { bg: "bg-indigo-100", text: "text-indigo-800", dot: "bg-indigo-500" },
         "已完成核章送出": { bg: "bg-emerald-100", text: "text-emerald-800", dot: "bg-emerald-500" },
       };
 
@@ -112,7 +112,7 @@
       }
 
       function renderBadge(status) {
-        const style = STATUS_STYLE[status] || STATUS_STYLE["未收到"]; 
+        const style = STATUS_STYLE[status] || STATUS_STYLE["尚未收到"]; 
         badge.className = `shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${style.bg} ${style.text}`;
         badge.textContent = status;
       }
@@ -144,8 +144,8 @@
         emptyState.classList.add('hidden');
         resultCard.classList.remove('hidden');
         resId.textContent = item?.id || '—';
-        renderBadge(item?.status || '未收到');
-        renderTimeline(item?.status || '未收到');
+        renderBadge(item?.status || '尚未收到');
+        renderTimeline(item?.status || '尚未收到');
         if (item?.note) {
           noteWrap.classList.remove('hidden');
           noteEl.textContent = item.note;
