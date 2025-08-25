@@ -1,24 +1,27 @@
-name: CSV → JSON (statuses)
+name: CSV → JSON (for GitHub Pages)
 
 on:
   push:
     paths:
-      - '**/statuses.csv'     # 任何路徑的 statuses.csv 有變更就觸發
+      - '**/statuses.csv'        # CSV 變更就觸發
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'       # 每小時跑一次（可調整）
+    - cron: '*/30 * * * *'       # 每 30 分跑一次（可改）
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write                # 允許推回 repo
+
+env:
+  PAGES_BRANCH: main             # ← 如果你的 Pages 用的是 gh-pages，就改成 gh-pages
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Pages branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.PAGES_BRANCH }}   # 保證是在 Pages 分支上操作
           fetch-depth: 0
 
       - name: Locate CSV path
@@ -27,7 +30,7 @@ jobs:
           set -euo pipefail
           CSV_PATH="$(git ls-files | grep -E '(^|/)statuses\.csv$' || true)"
           if [ -z "$CSV_PATH" ]; then
-            echo "❌ 找不到 statuses.csv"
+            echo "❌ 找不到 statuses.csv（請確認檔名與路徑）"
             exit 1
           fi
           echo "csv=$CSV_PATH" >> "$GITHUB_OUTPUT"
@@ -40,14 +43,13 @@ jobs:
           set -euo pipefail
           python3 - << 'PY'
           import csv, json, os, datetime, io
-
           CSV_PATH = os.environ['CSV_PATH']
           ALLOWED = {'未收到','已收件','二層核章','已完成核章送出'}
 
           def norm(s):
               if s is None: return ''
               s = str(s)
-              for bad in ['\ufeff','\u00A0','\u3000','\u200b']:  # 去BOM/奇怪空白
+              for bad in ['\ufeff','\u00A0','\u3000','\u200b']:
                   s = s.replace(bad,'')
               return s.strip().lower()
 
@@ -57,3 +59,16 @@ jobs:
 
           # 讀檔：容錯多種編碼
           last_err = None
+          for enc in ['utf-8-sig','utf-8','cp950','big5']:
+              try:
+                  text = open(CSV_PATH,'r',encoding=enc, newline='').read()
+                  break
+              except Exception as e:
+                  last_err = e
+          else:
+              raise last_err
+
+          # 猜分隔符（逗號/分號/Tab）
+          try:
+              sample = '\n'.join(text.splitlines()[:3])
+              dialect = csv.Sniffer().sniff(sample, delimiters=',;\t')
