@@ -156,9 +156,9 @@
         if (metaUpdated) {
           const dt = new Date(metaUpdated);
           const s = isNaN(dt) ? metaUpdated : dt.toLocaleString('zh-TW', { hour12:false });
-          updated.textContent = `資料更新時間：${s}`;
+          updated.textContent = `資料更新時間(每周五更新)：${s}`;
         } else {
-          updated.textContent = '資料更新時間：—';
+          updated.textContent = '資料更新時間(每周五更新)：—';
         }
       }
 
