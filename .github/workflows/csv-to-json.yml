@@ -72,3 +72,74 @@ jobs:
           try:
               sample = '\n'.join(text.splitlines()[:3])
               dialect = csv.Sniffer().sniff(sample, delimiters=',;\t')
+          except Exception:
+              dialect = None
+
+          reader = csv.reader(io.StringIO(text), dialect) if dialect else csv.reader(io.StringIO(text))
+          rows = [[c if c is not None else '' for c in row] for row in reader]
+          if not rows:
+              raise SystemExit("CSV 內無資料")
+
+          raw_headers = rows[0]
+          headers = [norm(h) for h in raw_headers]
+          print("👉 讀到的欄名（正規化後）：", headers)
+
+          def find_idx(syns):
+              for i,h in enumerate(headers):
+                  if h in syns:
+                      return i
+              return -1
+
+          i_id   = find_idx(SYN_ID)
+          i_st   = find_idx(SYN_STATUS)
+          i_note = find_idx(SYN_NOTE)
+
+          if min(i_id, i_st) < 0:
+              raise SystemExit(f"CSV 必須包含 id/status 或 單號/狀態，目前第一列為：{raw_headers}")
+
+          def get(r,i):
+              return (r[i].strip() if i>=0 and i<len(r) and r[i] is not None else '')
+
+          items = []
+          for r in rows[1:]:
+              if not any(str(x).strip() for x in r):  # 跳過空列
+                  continue
+              idv = get(r,i_id).upper()
+              if not idv:
+                  continue
+              st = get(r,i_st)
+              if st not in ALLOWED:
+                  st = '未收到'
+              note = get(r,i_note) if i_note >= 0 else ''
+              items.append({'id': idv, 'status': st, 'note': note})
+
+          items.sort(key=lambda x: x['id'])
+          data = {
+              'last_updated': datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(),
+              'items': items
+          }
+          with open('statuses.json','w',encoding='utf-8', newline='\n') as out:
+              json.dump(data, out, ensure_ascii=False, indent=2)
+              out.write('\n')
+          PY
+
+      - name: Preview JSON
+        run: |
+          echo "----- statuses.json (preview) -----"
+          head -n 60 statuses.json || true
+          echo "----- end preview -----"
+
+      - name: Commit & push if changed
+        run: |
+          set -euo pipefail
+          git pull --rebase --autostash || true
+          if git status --porcelain statuses.json | grep -q .; then
+            git config user.name  "github-actions"
+            git config user.email "actions@github.com"
+            git add statuses.json
+            git commit -m "chore: update statuses.json from CSV"
+            git push
+            echo "✅ 已更新並推送 statuses.json 到 ${{ env.PAGES_BRANCH }}"
+          else
+            echo "ℹ️ 無變更，略過提交"
+          fi
