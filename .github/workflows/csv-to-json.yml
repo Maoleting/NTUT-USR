@@ -44,7 +44,7 @@ jobs:
           python3 - << 'PY'
           import csv, json, os, datetime, io
           CSV_PATH = os.environ['CSV_PATH']
-          ALLOWED = {'未收到','已收件','二層核章','已完成核章送出'}
+          ALLOWED = {'尚未收到','已收件','待二層核章','已完成核章送出'}
 
           def norm(s):
               if s is None: return ''
@@ -109,7 +109,7 @@ jobs:
                   continue
               st = get(r,i_st)
               if st not in ALLOWED:
-                  st = '未收到'
+                  st = '尚未收到'
               note = get(r,i_note) if i_note >= 0 else ''
               items.append({'id': idv, 'status': st, 'note': note})
 
