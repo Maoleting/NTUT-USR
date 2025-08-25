@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>資料進度查詢｜USR校務端</title>
+    <meta name="description" content="教師送件資料單號查詢，顯示目前處理狀態：未收到／已收件／二層核章／已完成核章送出。" />
+    <!-- Tailwind via CDN for quick styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root { --brand:#0ea5e9; }
+      html { font-family: 'Noto Sans TC', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji'; }
+      .status-dot { width:10px; height:10px; border-radius:9999px; display:inline-block; margin-inline-end:.5rem; }
+    </style>
+  </head>
+  <body class="min-h-screen bg-slate-50">
+    <header class="bg-white border-b border-slate-200">
+      <div class="max-w-3xl mx-auto px-4 py-6">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900">資料進度查詢</h1>
+        <p class="text-slate-600 mt-1">輸入送件資料單號，查詢目前處理狀態（未收到／已收件／二層核章／已完成核章送出）。</p>
+      </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 py-8">
+      <!-- Search Card -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <label for="ticketInput" class="block text-sm font-medium text-slate-700">資料單號</label>
+        <div class="mt-2 flex gap-2">
+          <input id="ticketInput" type="text" inputmode="latin" autocomplete="off"
+                 class="flex-1 rounded-xl border-slate-300 focus:border-sky-500 focus:ring-sky-500 px-4 py-3 text-base"
+                 placeholder="例如：A2025-00123" />
+          <button id="searchBtn" class="rounded-xl bg-sky-600 hover:bg-sky-700 text-white px-5 py-3 font-semibold">查詢</button>
+        </div>
+        <p id="helper" class="mt-2 text-xs text-slate-500">支援在網址後加上 <code>?id=單號</code> 直接帶入查詢。</p>
+      </section>
+
+      <!-- Result Card -->
+      <section id="resultCard" class="mt-6 hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-sm text-slate-500">查詢單號</p>
+              <h2 id="resId" class="text-xl font-bold text-slate-900">—</h2>
+            </div>
+            <div id="badge" class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold">—</div>
+          </div>
+
+          <div class="mt-6">
+            <ol class="relative border-s-2 border-slate-200 ps-5 space-y-6" id="timeline">
+              <!-- Steps injected here -->
+            </ol>
+          </div>
+
+          <div id="noteWrap" class="mt-6 hidden">
+            <p class="text-sm text-slate-500">備註</p>
+            <p id="note" class="mt-1 text-slate-800"></p>
+          </div>
+        </div>
+        <div class="bg-slate-50 px-6 py-4 text-sm text-slate-600 flex items-center justify-between">
+          <span id="updated">資料更新時間：—</span>
+          <a class="text-sky-700 hover:underline" href="statuses.json" target="_blank" rel="noopener">查看資料檔</a>
+        </div>
+      </section>
+
+      <!-- Empty State -->
+      <section id="emptyState" class="mt-6 text-center text-slate-500 hidden">
+        <p class="mb-2">查無此單號或尚未建立。</p>
+        <p class="text-sm">若剛送件，請稍後再試；或聯絡承辦確認。狀態預設視為「未收到」。</p>
+      </section>
+
+      <footer class="mt-10 text-center text-xs text-slate-400">
+        <p>© <span id="y"></span> 校務永續中心・USR</p>
+      </footer>
+    </main>
+
+    <script>
+      // ====== Config ======
+      const STATUS_ORDER = ["未收到", "已收件", "二層核章", "已完成核章送出"];
+      const STATUS_STYLE = {
+        "未收到":  { bg: "bg-slate-200", text: "text-slate-700", dot: "bg-slate-400" },
+        "已收件":  { bg: "bg-amber-100", text: "text-amber-800", dot: "bg-amber-400" },
+        "二層核章": { bg: "bg-indigo-100", text: "text-indigo-800", dot: "bg-indigo-500" },
+        "已完成核章送出": { bg: "bg-emerald-100", text: "text-emerald-800", dot: "bg-emerald-500" },
+      };
+
+      // ====== DOM ======
+      const input = document.getElementById('ticketInput');
+      const btn = document.getElementById('searchBtn');
+      const resultCard = document.getElementById('resultCard');
+      const emptyState = document.getElementById('emptyState');
+      const resId = document.getElementById('resId');
+      const badge = document.getElementById('badge');
+      const timeline = document.getElementById('timeline');
+      const updated = document.getElementById('updated');
+      const noteWrap = document.getElementById('noteWrap');
+      const noteEl = document.getElementById('note');
+      document.getElementById('y').textContent = new Date().getFullYear();
+
+      // ====== Data fetch ======
+      async function loadStatuses() {
+        const url = `statuses.json?ts=${Date.now()}`; // avoid caching on GH Pages
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('無法載入資料檔');
+        return resp.json();
+      }
+
+      function normalizeId(id) {
+        return (id || '').trim().toUpperCase();
+      }
+
+      function renderBadge(status) {
+        const style = STATUS_STYLE[status] || STATUS_STYLE["未收到"]; 
+        badge.className = `shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${style.bg} ${style.text}`;
+        badge.textContent = status;
+      }
+
+      function renderTimeline(currentStatus) {
+        timeline.innerHTML = '';
+        const activeIdx = Math.max(STATUS_ORDER.indexOf(currentStatus), -1);
+        STATUS_ORDER.forEach((st, i) => {
+          const reached = i <= activeIdx;
+          const style = STATUS_STYLE[st];
+          const li = document.createElement('li');
+          li.className = 'ms-4';
+          li.innerHTML = `
+            <div class="absolute -start-[6px] mt-1 ${reached ? style.dot : 'bg-slate-300'} status-dot"></div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm ${reached ? 'font-semibold text-slate-900' : 'text-slate-500'}">${st}</span>
+              ${reached ? '<span class="text-xs text-slate-400">●</span>' : ''}
+            </div>`;
+          timeline.appendChild(li);
+        });
+      }
+
+      function showEmpty() {
+        resultCard.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+      }
+
+      function showResult(item, metaUpdated) {
+        emptyState.classList.add('hidden');
+        resultCard.classList.remove('hidden');
+        resId.textContent = item?.id || '—';
+        renderBadge(item?.status || '未收到');
+        renderTimeline(item?.status || '未收到');
+        if (item?.note) {
+          noteWrap.classList.remove('hidden');
+          noteEl.textContent = item.note;
+        } else {
+          noteWrap.classList.add('hidden');
+          noteEl.textContent = '';
+        }
+        if (metaUpdated) {
+          const dt = new Date(metaUpdated);
+          const s = isNaN(dt) ? metaUpdated : dt.toLocaleString('zh-TW', { hour12:false });
+          updated.textContent = `資料更新時間：${s}`;
+        } else {
+          updated.textContent = '資料更新時間：—';
+        }
+      }
+
+      async function doSearch(id) {
+        const q = normalizeId(id ?? input.value);
+        if (!q) { input.focus(); return; }
+        try {
+          const data = await loadStatuses();
+          const item = (data.items || []).find(x => normalizeId(x.id) === q);
+          if (!item) {
+            showEmpty();
+          } else {
+            showResult(item, data.last_updated);
+          }
+        } catch (e) {
+          alert(e.message || '資料載入失敗');
+        }
+      }
+
+      // UI handlers
+      btn.addEventListener('click', () => doSearch());
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+      // Support ?id= prefill
+      const params = new URLSearchParams(location.search);
+      const preset = params.get('id');
+      if (preset) {
+        input.value = preset;
+        doSearch(preset);
+      }
+    </script>
+  </body>
+</html>
