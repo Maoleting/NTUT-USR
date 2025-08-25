@@ -1,0 +1,40 @@
+name: Convert CSV to JSON
+
+on:
+  push:
+    paths:
+      - 'statuses.csv'   # 只要這個檔有改動，就會觸發
+  workflow_dispatch:      # 允許手動執行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Convert CSV to JSON
+        run: |
+          mkdir -p output
+          python3 - << 'EOF'
+          import csv, json, datetime
+          rows = []
+          with open("statuses.csv", newline='', encoding='utf-8') as f:
+              reader = csv.DictReader(f)
+              for r in reader:
+                  rows.append(r)
+          data = {
+              "last_updated": datetime.datetime.now().isoformat(),
+              "items": rows
+          }
+          with open("statuses.json", "w", encoding="utf-8") as out:
+              json.dump(data, out, ensure_ascii=False, indent=2)
+          EOF
+
+      - name: Commit and push JSON
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add statuses.json
+          git commit -m "Auto update statuses.json"
+          git push
